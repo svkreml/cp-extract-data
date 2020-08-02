@@ -1,22 +1,20 @@
-﻿using Org.BouncyCastle.Asn1;
-using Org.BouncyCastle.Asn1.X509;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Linq;
 using System.Security.Cryptography;
-using System.Text;
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.X509;
 
 namespace ExtractPkey
 {
-    class KeyParameters
+    internal class KeyParameters
     {
         public KeyParameters(Asn1Sequence seq)
         {
             Attributes = seq?.OfType<DerBitString>().FirstOrDefault();
             Algorithm = seq?.OfType<Asn1TaggedObject>()
-                .Where(x => x.TagNo == 0)
-                .Select(x => AlgorithmIdentifier.GetInstance(x, false))
-                .FirstOrDefault();
+                           .Where(x => x.TagNo == 0)
+                           .Select(x => AlgorithmIdentifier.GetInstance(x, false))
+                           .FirstOrDefault();
 
             if (Algorithm == null)
                 throw new CryptographicException("Ошибка в данных параметров ключа.");
@@ -27,7 +25,8 @@ namespace ExtractPkey
 
         public static KeyParameters GetInstance(object obj)
         {
-            switch (obj) {
+            switch (obj)
+            {
                 case null:
                     return null;
                 case KeyParameters pkp:
@@ -40,6 +39,8 @@ namespace ExtractPkey
         }
 
         public static KeyParameters GetInstance(Asn1TaggedObject obj, bool explicitly)
-            => GetInstance(Asn1TaggedObject.GetInstance(obj, explicitly));
+        {
+            return GetInstance(Asn1TaggedObject.GetInstance(obj, explicitly));
+        }
     }
 }

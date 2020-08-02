@@ -1,31 +1,27 @@
-﻿using Org.BouncyCastle.Asn1;
-using Org.BouncyCastle.Asn1.CryptoPro;
-using Org.BouncyCastle.Crypto.Parameters;
+﻿using System.IO;
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Pkcs;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities.IO.Pem;
 using Org.BouncyCastle.X509;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
 
 namespace ExtractPkey
 {
-    interface IExport
+    internal interface IExport
     {
         void Export(Container container, Stream output);
     }
 
-    class PrivateKeyExport : IExport
+    internal class PrivateKeyExport : IExport
     {
         public void Export(Container container, Stream output)
         {
-            var privateKey = EncodePrivateKey(container);
-            var pemObject = new PemObject("PRIVATE KEY", privateKey.GetDerEncoded());
-            using (var sw = new StreamWriter(output)) {
-                var writer = new PemWriter(sw);
+            Asn1Object privateKey = EncodePrivateKey(container);
+            PemObject pemObject = new PemObject("PRIVATE KEY", privateKey.GetDerEncoded());
+            using (StreamWriter sw = new StreamWriter(output))
+            {
+                PemWriter writer = new PemWriter(sw);
                 writer.WriteObject(pemObject);
             }
         }
@@ -46,21 +42,22 @@ namespace ExtractPkey
         }
     }
 
-    class CertificateExport : IExport
+    internal class CertificateExport : IExport
     {
         public void Export(Container container, Stream output)
         {
-            var rawCert = container.GetRawCertificate();
-            var pemObject = new PemObject("CERTIFICATE", rawCert);
-            using (var sw = new StreamWriter(output)) {
-                var writer = new PemWriter(sw);
+            byte[] rawCert = container.GetRawCertificate();
+            PemObject pemObject = new PemObject("CERTIFICATE", rawCert);
+            using (StreamWriter sw = new StreamWriter(output))
+            {
+                PemWriter writer = new PemWriter(sw);
                 writer.WriteObject(pemObject);
             }
         }
     }
 
     // не работает
-    class Pkcs12Export : IExport
+    internal class Pkcs12Export : IExport
     {
         private readonly string _password;
 
@@ -71,25 +68,26 @@ namespace ExtractPkey
 
         public void Export(Container container, Stream output)
         {
-            var rawCert = container.GetRawCertificate();
-            var privateKey = container.GetPrivateKey();
+            byte[] rawCert = container.GetRawCertificate();
+            BigInteger privateKey = container.GetPrivateKey();
 
-            var cert = new X509CertificateParser().ReadCertificate(rawCert);
-            var certEntry = new X509CertificateEntry(cert);
+            X509Certificate cert = new X509CertificateParser().ReadCertificate(rawCert);
+            X509CertificateEntry certEntry = new X509CertificateEntry(cert);
 
             string friendlyName = "alias";
-            var store = new Pkcs12Store();
+            Pkcs12Store store = new Pkcs12Store();
             store.SetCertificateEntry(friendlyName, certEntry);
             //store.SetKeyEntry(friendlyName, new AsymmetricKeyEntry(privateKey), new[] { certEntry });
 
-            var password = _password.ToCharArray();
-            using (var ms = new MemoryStream()) {
+            char[] password = _password.ToCharArray();
+            using (MemoryStream ms = new MemoryStream())
+            {
                 store.Save(ms, password, new SecureRandom());
 
                 // Save дописывает в конец какой-то мусор
                 ms.Position = 0;
-                var asn1 = new Asn1InputStream(ms);
-                var result = asn1.ReadObject();
+                Asn1InputStream asn1 = new Asn1InputStream(ms);
+                Asn1Object result = asn1.ReadObject();
                 byte[] buf = Pkcs12Utilities.ConvertToDefiniteLength(result.GetEncoded(), password);
 
                 output.Write(buf, 0, buf.Length);

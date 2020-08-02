@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
+﻿using System.IO;
 
 namespace ExtractPkey
 {
-    class FolderContainer : Container
+    internal class FolderContainer : Container
     {
         private readonly string _folderName;
 
@@ -16,16 +12,16 @@ namespace ExtractPkey
             _folderName = folderName;
         }
 
-        protected override Container.Data LoadContainerData()
+        protected override Data LoadContainerData()
         {
-            return new Container.Data
+            return new Data
             {
                 Header = File.ReadAllBytes(Path.Combine(_folderName, "header.key")),
                 Masks = File.ReadAllBytes(Path.Combine(_folderName, "masks.key")),
                 Masks2 = File.ReadAllBytes(Path.Combine(_folderName, "masks2.key")),
                 Name = File.ReadAllBytes(Path.Combine(_folderName, "name.key")),
                 Primary = File.ReadAllBytes(Path.Combine(_folderName, "primary.key")),
-                Primary2 = File.ReadAllBytes(Path.Combine(_folderName, "primary2.key")),
+                Primary2 = File.ReadAllBytes(Path.Combine(_folderName, "primary2.key"))
             };
         }
     }

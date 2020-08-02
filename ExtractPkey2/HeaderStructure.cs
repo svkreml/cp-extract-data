@@ -1,23 +1,22 @@
-﻿using Org.BouncyCastle.Asn1;
-using Org.BouncyCastle.Asn1.X509;
-using Org.BouncyCastle.Crypto.Parameters;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Linq;
 using System.Security.Cryptography;
-using System.Text;
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.X509;
 
 namespace ExtractPkey
 {
-    class HeaderStructure
+    internal class HeaderStructure
     {
         public HeaderStructure(Asn1Sequence seq)
         {
-            if (seq?.Count > 0 && seq[0] is Asn1Sequence seq2) {
-                foreach (var tag in seq2.OfType<Asn1TaggedObject>()) {
-                    switch (tag.TagNo) {
+            if (seq?.Count > 0 && seq[0] is Asn1Sequence seq2)
+            {
+                foreach (Asn1TaggedObject tag in seq2.OfType<Asn1TaggedObject>())
+                    switch (tag.TagNo)
+                    {
                         case 5:
-                            var cert = (tag.GetObject() as Asn1OctetString)?.GetOctets();
+                            byte[] cert = (tag.GetObject() as Asn1OctetString)?.GetOctets();
                             Certificate = X509CertificateStructure.GetInstance(cert);
                             break;
                         case 6:
@@ -28,9 +27,8 @@ namespace ExtractPkey
                             PublicX = Asn1OctetString.GetInstance(tag.GetObject())?.GetOctets();
                             break;
                     }
-                }
 
-                var seq3 = seq2?.OfType<Asn1Sequence>().FirstOrDefault();
+                Asn1Sequence seq3 = seq2?.OfType<Asn1Sequence>().FirstOrDefault();
                 PrivateKeyParameters = KeyParameters.GetInstance(seq3);
                 Attributes = seq2?.OfType<DerBitString>().FirstOrDefault();
             }
@@ -51,7 +49,8 @@ namespace ExtractPkey
 
         public static HeaderStructure GetInstance(object obj)
         {
-            switch (obj) {
+            switch (obj)
+            {
                 case null:
                     return null;
                 case HeaderStructure header:
@@ -64,6 +63,8 @@ namespace ExtractPkey
         }
 
         public static HeaderStructure GetInstance(Asn1TaggedObject obj, bool explicitly)
-            => GetInstance(Asn1TaggedObject.GetInstance(obj, explicitly));
+        {
+            return GetInstance(Asn1TaggedObject.GetInstance(obj, explicitly));
+        }
     }
 }

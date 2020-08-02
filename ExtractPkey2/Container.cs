@@ -1,25 +1,38 @@
-﻿using Org.BouncyCastle.Asn1;
+﻿using System;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.CryptoPro;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
+using Org.BouncyCastle.Math.EC;
 using Org.BouncyCastle.Security;
-using System;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace ExtractPkey
 {
-    abstract class Container
+    internal abstract class Container
     {
-        private readonly Lazy<HeaderStructure> _headerObj;
-        private readonly Lazy<PrimaryStructure> _primaryObj;
-        private readonly Lazy<MasksStructure> _masksObj;
+        private static readonly byte[] Gost28147_TC26ParamSetZ =
+        {
+            0xc, 0x4, 0x6, 0x2, 0xa, 0x5, 0xb, 0x9, 0xe, 0x8, 0xd, 0x7, 0x0, 0x3, 0xf, 0x1,
+            0x6, 0x8, 0x2, 0x3, 0x9, 0xa, 0x5, 0xc, 0x1, 0xe, 0x4, 0x7, 0xb, 0xd, 0x0, 0xf,
+            0xb, 0x3, 0x5, 0x8, 0x2, 0xf, 0xa, 0xd, 0xe, 0x1, 0x7, 0x4, 0xc, 0x9, 0x6, 0x0,
+            0xc, 0x8, 0x2, 0x1, 0xd, 0x4, 0xf, 0x6, 0x7, 0x0, 0xa, 0x5, 0x3, 0xe, 0x9, 0xb,
+            0x7, 0xf, 0x5, 0xa, 0x8, 0x1, 0x6, 0xd, 0x0, 0x9, 0x3, 0xe, 0xb, 0x4, 0x2, 0xc,
+            0x5, 0xd, 0xf, 0x6, 0x9, 0x2, 0xc, 0xa, 0xb, 0x7, 0x8, 0x1, 0x4, 0x3, 0xe, 0x0,
+            0x8, 0xe, 0x2, 0x5, 0x6, 0x9, 0x1, 0xc, 0xf, 0x4, 0xb, 0x0, 0xd, 0xa, 0x3, 0x7,
+            0x1, 0x7, 0xe, 0xd, 0x0, 0x5, 0x8, 0x3, 0x4, 0xf, 0xa, 0x6, 0x9, 0xc, 0xb, 0x2
+        };
+
         private readonly Lazy<Data> _data;
+        private readonly Lazy<HeaderStructure> _headerObj;
+        private readonly Lazy<MasksStructure> _masksObj;
         protected readonly string _pin;
+        private readonly Lazy<PrimaryStructure> _primaryObj;
 
         protected Container(string pin)
         {
@@ -30,41 +43,45 @@ namespace ExtractPkey
             _masksObj = new Lazy<MasksStructure>(LoadMasks);
         }
 
-        private MasksStructure LoadMasks()
-            => MasksStructure.GetInstance(Asn1Object.FromByteArray(_data.Value.Masks));
-
-        private PrimaryStructure LoadPrimary()
-            => PrimaryStructure.GetInstance(Asn1Object.FromByteArray(_data.Value.Primary));
-
-        private HeaderStructure LoadHeader()
-            => HeaderStructure.GetInstance(Asn1Object.FromByteArray(_data.Value.Header));
-
         public HeaderStructure Header => _headerObj.Value;
         public PrimaryStructure Primary => _primaryObj.Value;
         public MasksStructure Masks => _masksObj.Value;
 
-        public Gost3410PublicKeyAlgParameters PublicKeyAlg
-            => Gost3410PublicKeyAlgParameters.GetInstance(Header.PrivateKeyParameters.Algorithm.Parameters);
+        public Gost3410PublicKeyAlgParameters PublicKeyAlg =>
+            Gost3410PublicKeyAlgParameters.GetInstance(Header.PrivateKeyParameters.Algorithm.Parameters);
 
-        public DerObjectIdentifier DHAlgorithmId
-            => Header.PrivateKeyParameters.Algorithm.Algorithm;
+        public DerObjectIdentifier DHAlgorithmId => Header.PrivateKeyParameters.Algorithm.Algorithm;
 
-        public ProviderType ProviderType
-            => Utils.GetProviderType(DHAlgorithmId);
+        public ProviderType ProviderType => Utils.GetProviderType(DHAlgorithmId);
 
-        public DerObjectIdentifier SignAlgorithmId
-            => Utils.GetSignAlgorithmId(ProviderType);
+        public DerObjectIdentifier SignAlgorithmId => Utils.GetSignAlgorithmId(ProviderType);
+
+        private MasksStructure LoadMasks()
+        {
+            return MasksStructure.GetInstance(Asn1Object.FromByteArray(_data.Value.Masks));
+        }
+
+        private PrimaryStructure LoadPrimary()
+        {
+            return PrimaryStructure.GetInstance(Asn1Object.FromByteArray(_data.Value.Primary));
+        }
+
+        private HeaderStructure LoadHeader()
+        {
+            return HeaderStructure.GetInstance(Asn1Object.FromByteArray(_data.Value.Header));
+        }
 
         public BigInteger GetPrivateKey()
         {
-            var pinArray = Encoding.ASCII.GetBytes(_pin ?? "");
-            var decodeKey = GetDecodeKey(Masks.Salt, pinArray);
-            var primKeyWithMask = DecodePrimaryKey(decodeKey, Primary.Key);
+            byte[] pinArray = Encoding.ASCII.GetBytes(_pin ?? "");
+            byte[] decodeKey = GetDecodeKey(Masks.Salt, pinArray);
+            BigInteger primKeyWithMask = DecodePrimaryKey(decodeKey, Primary.Key);
 
-            var masksKey = new BigInteger(1, Masks.Key);
-            var param = new ECKeyGenerationParameters(PublicKeyAlg.PublicKeyParamSet, new SecureRandom());
-            var maskInv = masksKey.ModInverse(param.DomainParameters.Curve.Order);
-            var privateKey = primKeyWithMask.Multiply(maskInv).Mod(param.DomainParameters.Curve.Order);
+            BigInteger masksKey = new BigInteger(1, Masks.Key);
+            ECKeyGenerationParameters param =
+                new ECKeyGenerationParameters(PublicKeyAlg.PublicKeyParamSet, new SecureRandom());
+            BigInteger maskInv = masksKey.ModInverse(param.DomainParameters.Curve.Order);
+            BigInteger privateKey = primKeyWithMask.Multiply(maskInv).Mod(param.DomainParameters.Curve.Order);
 
             CheckPublicKey(param.DomainParameters, privateKey, Header.PublicX);
 
@@ -73,11 +90,12 @@ namespace ExtractPkey
 
         private static void CheckPublicKey(ECDomainParameters domainParams, BigInteger privateKey, byte[] publicX)
         {
-            var point = domainParams.G.Multiply(privateKey).Normalize();
-            var x = point.AffineXCoord.GetEncoded().Reverse().Take(publicX.Length).ToArray();
+            ECPoint point = domainParams.G.Multiply(privateKey).Normalize();
+            byte[] x = point.AffineXCoord.GetEncoded().Reverse().Take(publicX.Length).ToArray();
 
             if (!publicX.SequenceEqual(x))
-                throw new CryptographicException("Не удалось проверить корректность открытого ключа (некорректный ПИН-код?).");
+                throw new CryptographicException(
+                    "Не удалось проверить корректность открытого ключа (некорректный ПИН-код?).");
         }
 
         public byte[] GetRawCertificate()
@@ -91,32 +109,21 @@ namespace ExtractPkey
             throw new CryptographicException("Контейнер не содержит сертификата.");
         }
 
-        private static readonly byte[] Gost28147_TC26ParamSetZ = {
-            0xc,0x4,0x6,0x2,0xa,0x5,0xb,0x9,0xe,0x8,0xd,0x7,0x0,0x3,0xf,0x1,
-            0x6,0x8,0x2,0x3,0x9,0xa,0x5,0xc,0x1,0xe,0x4,0x7,0xb,0xd,0x0,0xf,
-            0xb,0x3,0x5,0x8,0x2,0xf,0xa,0xd,0xe,0x1,0x7,0x4,0xc,0x9,0x6,0x0,
-            0xc,0x8,0x2,0x1,0xd,0x4,0xf,0x6,0x7,0x0,0xa,0x5,0x3,0xe,0x9,0xb,
-            0x7,0xf,0x5,0xa,0x8,0x1,0x6,0xd,0x0,0x9,0x3,0xe,0xb,0x4,0x2,0xc,
-            0x5,0xd,0xf,0x6,0x9,0x2,0xc,0xa,0xb,0x7,0x8,0x1,0x4,0x3,0xe,0x0,
-            0x8,0xe,0x2,0x5,0x6,0x9,0x1,0xc,0xf,0x4,0xb,0x0,0xd,0xa,0x3,0x7,
-            0x1,0x7,0xe,0xd,0x0,0x5,0x8,0x3,0x4,0xf,0xa,0x6,0x9,0xc,0xb,0x2,
-        };
-
         private BigInteger DecodePrimaryKey(byte[] decodeKey, byte[] primaryKey)
         {
-            var engine = new Gost28147Engine();
+            Gost28147Engine engine = new Gost28147Engine();
 
-            var sbox =
+            byte[] sbox =
                 ProviderType == ProviderType.CryptoPro_2001
                     ? Gost28147Engine.GetSBox("E-A")
                     : Gost28147_TC26ParamSetZ;
 
-            var param = new ParametersWithSBox(
+            ParametersWithSBox param = new ParametersWithSBox(
                 new KeyParameter(decodeKey), sbox);
 
             engine.Init(false, param);
 
-            var buf = new byte[primaryKey.Length];
+            byte[] buf = new byte[primaryKey.Length];
             for (int i = 0; i < primaryKey.Length; i += 8)
                 engine.ProcessBlock(primaryKey, i, buf, i);
 
@@ -125,15 +132,16 @@ namespace ExtractPkey
 
         private static void XorMaterial(byte[] buf36, byte[] buf5c, byte[] src)
         {
-            for (int i = 0; i < src.Length; ++i) {
-                buf36[i] = (byte)(src[i] ^ 0x36);
-                buf5c[i] = (byte)(src[i] ^ 0x5C);
+            for (int i = 0; i < src.Length; ++i)
+            {
+                buf36[i] = (byte) (src[i] ^ 0x36);
+                buf5c[i] = (byte) (src[i] ^ 0x5C);
             }
         }
 
         private byte[] GetDecodeKey(byte[] salt, byte[] pin)
         {
-            var pincode4 = new byte[pin.Length * 4];
+            byte[] pincode4 = new byte[pin.Length * 4];
             for (int i = 0; i < pin.Length; ++i)
                 pincode4[i * 4] = pin[i];
 
@@ -146,18 +154,19 @@ namespace ExtractPkey
             if (pin.Length > 0)
                 digest.BlockUpdate(pincode4, 0, pincode4.Length);
 
-            var result = new byte[digest.GetDigestSize()];
+            byte[] result = new byte[digest.GetDigestSize()];
             digest.DoFinal(result, 0);
 
-            var len = ProviderType == ProviderType.CryptoPro_2001 ? 32 : 64;
-            var material36 = new byte[len];
-            var material5c = new byte[len];
-            var current = new byte[len];
+            int len = ProviderType == ProviderType.CryptoPro_2001 ? 32 : 64;
+            byte[] material36 = new byte[len];
+            byte[] material5c = new byte[len];
+            byte[] current = new byte[len];
 
             Array.Copy(Encoding.ASCII.GetBytes("DENEFH028.760246785.IUEFHWUIO.EF"), current, 32);
 
             len = pin.Length > 0 ? 2000 : 2;
-            for (int i = 0; i < len; ++i) {
+            for (int i = 0; i < len; ++i)
+            {
                 XorMaterial(material36, material5c, current);
                 digest.Reset();
                 digest.BlockUpdate(material36, 0, material36.Length);
@@ -176,7 +185,7 @@ namespace ExtractPkey
                 digest.BlockUpdate(pincode4, 0, pincode4.Length);
             digest.DoFinal(current, 0);
 
-            var result_key = new byte[digest.GetDigestSize()];
+            byte[] result_key = new byte[digest.GetDigestSize()];
             digest.Reset();
             digest.BlockUpdate(current, 0, 32);
             digest.DoFinal(result_key, 0);

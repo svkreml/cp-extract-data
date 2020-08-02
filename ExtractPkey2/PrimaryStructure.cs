@@ -1,13 +1,10 @@
-﻿using Org.BouncyCastle.Asn1;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System;
 using System.Security.Cryptography;
-using System.Text;
+using Org.BouncyCastle.Asn1;
 
 namespace ExtractPkey
 {
-    class PrimaryStructure
+    internal class PrimaryStructure
     {
         public PrimaryStructure(Asn1Sequence seq)
         {
@@ -30,7 +27,8 @@ namespace ExtractPkey
 
         public static PrimaryStructure GetInstance(object obj)
         {
-            switch (obj) {
+            switch (obj)
+            {
                 case null:
                     return null;
                 case PrimaryStructure primary:
@@ -43,6 +41,8 @@ namespace ExtractPkey
         }
 
         public static PrimaryStructure GetInstance(Asn1TaggedObject obj, bool explicitly)
-            => GetInstance(Asn1TaggedObject.GetInstance(obj, explicitly));
+        {
+            return GetInstance(Asn1TaggedObject.GetInstance(obj, explicitly));
+        }
     }
 }

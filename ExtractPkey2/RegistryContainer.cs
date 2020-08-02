@@ -1,14 +1,11 @@
-﻿using Microsoft.Win32;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System;
 using System.Security.Cryptography;
 using System.Security.Principal;
-using System.Text;
+using Microsoft.Win32;
 
 namespace ExtractPkey
 {
-    class RegistryContainer : Container
+    internal class RegistryContainer : Container
     {
         private readonly string _containerName;
 
@@ -18,30 +15,38 @@ namespace ExtractPkey
             _containerName = containerName;
         }
 
-        protected override Container.Data LoadContainerData()
+        protected override Data LoadContainerData()
         {
-            var keyName = GetCurrentUserKeyName(_containerName);
-            using (var key = Registry.LocalMachine.OpenSubKey(keyName)) {
+            string keyName = GetCurrentUserKeyName(_containerName);
+            using (RegistryKey key = Registry.LocalMachine.OpenSubKey(keyName))
+            {
                 if (key == null)
                     throw new CryptographicException($"Ключ \"HKLM\\{keyName}\" не найден.");
 
-                return new Container.Data
+                return new Data
                 {
-                    Header = (byte[])key.GetValue("header.key"),
-                    Masks = (byte[])key.GetValue("masks.key"),
-                    Masks2 = (byte[])key.GetValue("masks2.key"),
-                    Name = (byte[])key.GetValue("name.key"),
-                    Primary = (byte[])key.GetValue("primary.key"),
-                    Primary2 = (byte[])key.GetValue("primary2.key")
+                    Header = (byte[]) key.GetValue("header.key"),
+                    Masks = (byte[]) key.GetValue("masks.key"),
+                    Masks2 = (byte[]) key.GetValue("masks2.key"),
+                    Name = (byte[]) key.GetValue("name.key"),
+                    Primary = (byte[]) key.GetValue("primary.key"),
+                    Primary2 = (byte[]) key.GetValue("primary2.key")
                 };
             }
         }
 
         private static string GetCurrentUserKeyName(string containerName)
         {
-            string sid = WindowsIdentity.GetCurrent().User.Value;
-            string node = Environment.Is64BitOperatingSystem ? "Wow6432Node\\" : "";
-            return String.Format(@"SOFTWARE\{0}Crypto Pro\Settings\Users\{1}\Keys\{2}", node, sid, containerName);
+            SecurityIdentifier securityIdentifier = WindowsIdentity.GetCurrent().User;
+            if (securityIdentifier != null)
+            {
+                string sid = securityIdentifier.Value;
+                string node = Environment.Is64BitOperatingSystem ? "Wow6432Node\\" : "";
+                return string.Format(@"SOFTWARE\{0}Crypto Pro\Settings\Users\{1}\Keys\{2}", node, sid, containerName);
+            } else
+            {
+                throw new NullReferenceException("WindowsIdentity.GetCurrent().User");
+            }
         }
     }
 }

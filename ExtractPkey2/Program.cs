@@ -1,83 +1,92 @@
-﻿using Mono.Options;
-using Org.BouncyCastle.Asn1;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
+﻿using System;
+using Mono.Options;
 
 namespace ExtractPkey
 {
-    class Program
+    internal class Program
     {
-        enum Mode
-        {
-            Private, Certificate
-        }
-
         private static OptionSet options;
 
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             string folder = null, name = null, pin = null;
             Mode mode = Mode.Private;
             bool showHelp = false;
 
-            options = new OptionSet {
-                { "f|folder=",  "Путь к контейнеру", f => folder = f },
-                { "r|reg=",  "Имя контейнера в реестре", r => name = r },
-                { "private", "Извлечь закрытый ключ (по умолчанию)", p => { if (p != null) mode = Mode.Private; } },
-                { "cert", "Извлечь сертификат", c => { if (c != null) mode = Mode.Certificate; } },
-                { "p|pin=", "ПИН-код", p => pin = p },
-                { "h|help", "Помощь", h => showHelp = h != null}
+            options = new OptionSet
+            {
+                {"f|folder=", "Путь к контейнеру", f => folder = f},
+                {"r|reg=", "Имя контейнера в реестре", r => name = r},
+                {
+                    "private", "Извлечь закрытый ключ (по умолчанию)", p =>
+                    {
+                        if (p != null) mode = Mode.Private;
+                    }
+                },
+                {
+                    "cert", "Извлечь сертификат", c =>
+                    {
+                        if (c != null) mode = Mode.Certificate;
+                    }
+                },
+                {"p|pin=", "ПИН-код", p => pin = p},
+                {"h|help", "Помощь", h => showHelp = h != null}
             };
 
-            try {
+            try
+            {
                 options.Parse(args);
-            } catch (OptionException e) {
+            } catch (OptionException e)
+            {
                 Console.Error.WriteLine(e.Message);
                 return;
             }
 
-            if (showHelp) {
+            if (showHelp)
+            {
                 PrintHelp();
                 return;
             }
 
             Container container = null;
-            if (!String.IsNullOrEmpty(folder)) {
+            if (!string.IsNullOrEmpty(folder))
                 container = new FolderContainer(folder, pin);
-            } else if (!String.IsNullOrEmpty(name)) {
-                container = new RegistryContainer(name, pin);
-            }
+            else if (!string.IsNullOrEmpty(name)) container = new RegistryContainer(name, pin);
 
-            if (container == null) {
+            if (container == null)
+            {
                 PrintHelp();
                 return;
             }
 
             IExport export;
-            if (mode == Mode.Certificate) {
+            if (mode == Mode.Certificate)
                 export = new CertificateExport();
-            } else {
+            else
                 export = new PrivateKeyExport();
-            }
 
-            try {
+            try
+            {
                 export.Export(container, Console.OpenStandardOutput());
-            } catch (Exception e) {
+            } catch (Exception e)
+            {
                 Console.Error.WriteLine(e.Message);
             }
         }
 
-        static void PrintHelp()
+        private static void PrintHelp()
         {
             Console.WriteLine("Использование: extractpkey {ПАРАМЕТРЫ}");
             Console.WriteLine("Извлечение данных из контейнера Крипто ПРО");
             Console.WriteLine();
             Console.WriteLine("Параметры:");
             options.WriteOptionDescriptions(Console.Out);
+        }
+
+        private enum Mode
+        {
+            Private,
+            Certificate
         }
     }
 }

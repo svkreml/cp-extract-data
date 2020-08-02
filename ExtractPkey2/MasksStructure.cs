@@ -1,17 +1,15 @@
-﻿using Org.BouncyCastle.Asn1;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System;
 using System.Security.Cryptography;
-using System.Text;
+using Org.BouncyCastle.Asn1;
 
 namespace ExtractPkey
 {
-    class MasksStructure
+    internal class MasksStructure
     {
         public MasksStructure(Asn1Sequence seq)
         {
-            if (seq?.Count > 2) {
+            if (seq?.Count > 2)
+            {
                 Key = (seq[0] as Asn1OctetString)?.GetOctets();
                 Salt = (seq[1] as Asn1OctetString)?.GetOctets();
                 HMAC = (seq[2] as Asn1OctetString)?.GetOctets();
@@ -29,7 +27,8 @@ namespace ExtractPkey
 
         public static MasksStructure GetInstance(object obj)
         {
-            switch (obj) {
+            switch (obj)
+            {
                 case null:
                     return null;
                 case MasksStructure masks:
@@ -42,6 +41,8 @@ namespace ExtractPkey
         }
 
         public static MasksStructure GetInstance(Asn1TaggedObject obj, bool explicitly)
-            => GetInstance(Asn1TaggedObject.GetInstance(obj, explicitly));
+        {
+            return GetInstance(Asn1TaggedObject.GetInstance(obj, explicitly));
+        }
     }
 }
